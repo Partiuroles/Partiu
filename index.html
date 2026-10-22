@@ -1,0 +1,510 @@
+<!doctype html>
+<html lang="pt-BR"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Partiu?</title>
+<meta name="theme-color" content="#98EDCC">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Partiu?">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rubik:ital,wght@0,500;0,700;0,800;1,800&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&display=swap">
+<style>
+/* Layout: one-screen phone app, two roles. Brand "Partiu?": heavy italic wordmark, turquoise question mark with rays, flat silhouette illustrations (ink + turquoise + light-blue crowd). */
+:root{
+  --bg:#F3F6F8; --surface:#FFFFFF; --ink:#14171C; --muted:#5D6975; --line:#DAE2E8;
+  --brand:#0A7C9E; --brand-ink:#FFFFFF; --chip:#E1F3F7; --turq:#3CC9D3;
+  --art-bg:#FFFFFF; --art-ink:#1A1E26; --art-crowd:#A6D8EC;
+  --yes:#16875C; --no:#D23F46; --warn:#93600F; --warn-bg:#FAEFD9; --yes-bg:#DDF3E9; --no-bg:#FBE3E4;
+  --shadow:0 10px 30px rgba(10,50,70,.14);
+  --font-d:'Rubik',system-ui,sans-serif;
+  --font-b:'DM Sans',system-ui,-apple-system,sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0D1115; --surface:#161C22; --ink:#EDF2F5; --muted:#97A5B1; --line:#25303A;
+  --brand:#47CFDA; --brand-ink:#05222A; --chip:#12303A; --turq:#47CFDA;
+  --art-bg:#1C242C; --art-ink:#E6ECF0; --art-crowd:#2C5A6E;
+  --yes:#3CC48A; --no:#FF6B70; --warn:#E6B05A; --warn-bg:#33270F; --yes-bg:#123326; --no-bg:#3A1619;
+  --shadow:0 10px 30px rgba(0,0,0,.45); color-scheme:dark;}}
+:root[data-theme="dark"]{
+  --bg:#0D1115; --surface:#161C22; --ink:#EDF2F5; --muted:#97A5B1; --line:#25303A;
+  --brand:#47CFDA; --brand-ink:#05222A; --chip:#12303A; --turq:#47CFDA;
+  --art-bg:#1C242C; --art-ink:#E6ECF0; --art-crowd:#2C5A6E;
+  --yes:#3CC48A; --no:#FF6B70; --warn:#E6B05A; --warn-bg:#33270F; --yes-bg:#123326; --no-bg:#3A1619;
+  --shadow:0 10px 30px rgba(0,0,0,.45); color-scheme:dark;}
+
+html,body{height:100%}
+body{background:var(--bg);color:var(--ink);font-family:var(--font-b);font-size:15px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0;overflow:hidden}
+*{box-sizing:border-box}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,a:focus-visible,label:focus-within{outline:2px solid var(--brand);outline-offset:2px}
+.app{position:relative;max-width:430px;height:100%;margin:0 auto;display:flex;flex-direction:column;overflow:hidden}
+header{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 0 8px}
+
+/* logo */
+.logo{font-family:var(--font-d);font-style:italic;font-weight:800;font-size:26px;letter-spacing:-.035em;color:var(--ink);position:relative;display:inline-flex;align-items:baseline;line-height:1;padding-right:.35em}
+.logo .q{background:linear-gradient(160deg,#6BE3D8,#2C93D3);-webkit-background-clip:text;background-clip:text;color:transparent;padding-right:.04em}
+.logo svg{position:absolute;width:.5em;height:.5em;right:0;top:-.22em;overflow:visible}
+.logo svg path{stroke:#3CC9D3;stroke-width:3.6;stroke-linecap:round;fill:none}
+
+.seg{display:flex;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:3px}
+.seg button{border:none;background:none;padding:7px 10px;border-radius:9px;font-size:12.5px;font-weight:700;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+.role{flex:1;min-height:0;display:flex;flex-direction:column}
+.role[hidden]{display:none!important}
+main{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+.view{flex:1;min-height:0;display:flex;flex-direction:column}
+.view[hidden]{display:none!important}
+.scroll{overflow-y:auto;padding-bottom:20px}
+
+/* art */
+.art-svg .ai{fill:var(--art-ink)} .art-svg .at{fill:url(#pgT)} .art-svg .ac{fill:var(--art-crowd)} .art-svg .abg{fill:var(--art-bg)}
+.art-svg .ats{stroke:#3CC9D3;stroke-width:5;stroke-linecap:round;fill:none}
+.art-svg .ais{stroke:var(--art-ink);fill:none;stroke-linecap:round}
+.art-svg .acs{stroke:var(--art-crowd);fill:none;stroke-linecap:round}
+
+/* home */
+.greet{display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding:2px 0 8px}
+.greet b{font-family:var(--font-d);font-size:22px;font-weight:800;letter-spacing:-.01em;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.greet span{font-size:12.5px;color:var(--muted);flex:none}
+.deck{position:relative;flex:1;min-height:340px;margin:6px 0 14px}
+.card{position:absolute;inset:0;background:var(--surface);border-radius:22px;box-shadow:var(--shadow);display:flex;flex-direction:column;overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none;transition:transform .25s ease;border:1px solid var(--line)}
+.card.dragging{transition:none}
+.art{flex:1;min-height:110px;position:relative;background:var(--art-bg);overflow:hidden}
+.art svg,.art img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;pointer-events:none}
+.cat{position:absolute;top:14px;left:14px;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;background:var(--surface);color:var(--ink);border:1px solid var(--line);padding:5px 10px;border-radius:99px;z-index:1}
+.cinfo{padding:14px 18px 12px;display:flex;flex-direction:column;gap:4px}
+.cinfo h2{font-family:var(--font-d);font-weight:800;font-size:clamp(24px,7vw,30px);line-height:1.02;margin:0;letter-spacing:-.02em;text-wrap:balance}
+.cinfo p{margin:0;color:var(--muted);font-size:14px;line-height:1.4}
+.spots{font-size:12.5px;font-weight:700;color:var(--brand)}
+.perf{position:relative;height:0;border-top:2px dashed var(--line);margin:0 18px}
+.perf::before,.perf::after{content:"";position:absolute;top:-12px;width:22px;height:22px;border-radius:50%;background:var(--bg);border:1px solid var(--line)}
+.perf::before{left:-31px}.perf::after{right:-31px}
+.stub{display:grid;grid-template-columns:1.1fr 1.3fr 1fr;gap:10px;padding:12px 18px 14px}
+.stub div{min-width:0}
+.lbl{display:block;font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);margin-bottom:3px;font-weight:700}
+.val{font-weight:700;font-size:13.5px;line-height:1.25}
+.price{font-family:var(--font-d);font-size:19px;font-weight:800;font-variant-numeric:tabular-nums}
+.stamp{position:absolute;top:50px;font-family:var(--font-d);font-style:italic;font-weight:800;font-size:28px;padding:2px 12px;border:4px solid;border-radius:10px;opacity:0;z-index:2;background:var(--surface)}
+.stamp.yes{left:16px;transform:rotate(-12deg);color:var(--brand);border-color:var(--brand)}
+.stamp.no{right:16px;transform:rotate(12deg);color:var(--no);border-color:var(--no)}
+.actions{display:flex;justify-content:center;gap:28px;padding-bottom:12px}
+.round{width:62px;height:62px;border-radius:50%;border:none;background:var(--surface);box-shadow:var(--shadow);display:grid;place-items:center}
+.round svg{width:28px;height:28px}
+.round.no{color:var(--no)}.round.yes{color:var(--brand)}
+.round:active{transform:scale(.93)}
+.empty{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:10px;color:var(--muted);padding:20px}
+.empty h3{font-family:var(--font-d);color:var(--ink);font-size:22px;margin:0}
+.banner{border-radius:14px;padding:10px 12px;font-size:13px;font-weight:500;line-height:1.4;background:var(--warn-bg);color:var(--warn)}
+.banner.bad{background:var(--no-bg);color:var(--no)}
+
+/* buttons */
+.btn{border:none;border-radius:14px;padding:14px 16px;font-weight:700;width:100%;background:var(--ink);color:var(--bg);text-align:center;text-decoration:none;display:inline-block}
+.btn.ghost{background:transparent;color:var(--ink);border:1.5px solid var(--line)}
+.btn.small{width:auto;padding:8px 12px;font-size:13px;border-radius:10px}
+.btn.ok{background:var(--yes);color:#fff}
+.btn.bad{background:transparent;color:var(--no);border:1.5px solid var(--line)}
+.check .link{display:inline;padding:0;font-size:inherit;text-decoration:underline}
+.terms h4{font-family:var(--font-d);font-size:15px;margin:18px 0 4px}.terms p,.terms li{font-size:14.5px;line-height:1.55;margin:0 0 8px}.terms ul{padding-left:20px;margin:0 0 8px}.tn{color:var(--muted);font-weight:700;margin-right:4px}.tmeta{color:var(--muted);font-size:12.5px!important}
+.link{background:none;border:none;color:var(--brand);font-weight:700;padding:6px 0;font-size:13px;text-align:left}
+
+/* lists */
+h1.sec{font-family:var(--font-d);font-weight:800;font-size:26px;margin:6px 0 4px;letter-spacing:-.015em;text-wrap:balance}
+h2.sec2{font-family:var(--font-d);font-size:18px;margin:18px 0 8px}
+.sub{color:var(--muted);margin:0 0 14px;font-size:14px;line-height:1.45}
+.list{display:flex;flex-direction:column;gap:10px}
+.row{display:flex;gap:12px;align-items:center;background:var(--surface);border-radius:16px;padding:12px;border:1px solid var(--line);text-align:left;width:100%}
+.swatch{width:56px;height:56px;border-radius:12px;flex:none;position:relative;overflow:hidden;background:var(--art-bg);border:1px solid var(--line)}
+.swatch svg,.swatch img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.row .info{flex:1;min-width:0}
+.row .t{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .m{color:var(--muted);font-size:13px}
+.pill{display:inline-block;font-size:11.5px;font-weight:700;padding:3px 8px;border-radius:99px;margin-top:5px}
+.pill.pay{background:var(--chip);color:var(--brand)}
+.pill.wait{background:var(--warn-bg);color:var(--warn)}
+.pill.ok{background:var(--yes-bg);color:var(--yes)}
+.pill.bad{background:var(--no-bg);color:var(--no)}
+.bar{height:6px;background:var(--line);border-radius:99px;overflow:hidden;margin-top:7px}
+.bar i{display:block;height:100%;background:linear-gradient(90deg,#6BE3D8,#2C93D3);border-radius:99px}
+.money{font-family:var(--font-d);font-weight:800;font-variant-numeric:tabular-nums;font-size:15px;text-align:right}
+.money small{display:block;font-family:var(--font-b);font-weight:500;font-size:11px;color:var(--muted)}
+
+/* admin */
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:4px 0 14px}
+.tile{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:10px;min-width:0}
+.tile b{display:block;font-family:var(--font-d);font-size:24px;font-variant-numeric:tabular-nums}
+.tile span{font-size:11.5px;color:var(--muted);line-height:1.25;display:block}
+.tile.alert b{color:var(--warn)}
+.ph{display:flex;gap:8px;overflow-x:auto;padding-bottom:2px}.ph button{flex:none;width:96px;border:0;padding:0;background:none;text-align:center;font:inherit;font-size:11px;color:var(--muted);cursor:pointer}.ph .im{display:block;width:96px;height:120px;border-radius:12px;background:var(--chip) center/cover;border:1px solid var(--line);margin-bottom:4px}
+.ucard{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:14px;display:flex;flex-direction:column;gap:10px}
+.uhead{display:flex;gap:12px;align-items:center}
+.avatar{width:48px;height:48px;border-radius:50%;flex:none;display:grid;place-items:center;background:var(--chip);color:var(--brand);font-family:var(--font-d);font-weight:800;font-size:17px;background-size:cover;background-position:center}
+.avatar.big{width:96px;height:96px;font-size:34px}
+.avatar.xl{width:132px;height:132px;background-position:50% 28%;box-shadow:0 0 0 4px var(--bg),0 0 0 6px var(--brand)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:6px 12px;font-size:13px}
+.grid2 div{min-width:0;overflow-wrap:anywhere}
+.grid2 span{display:block;color:var(--muted);font-size:11px}
+.btnrow{display:flex;gap:8px}
+.btnrow .btn{flex:1;padding:11px}
+
+/* tabbar */
+nav{display:grid;border-top:1px solid var(--line);padding:6px 0 8px;background:var(--bg)}
+nav[hidden]{display:none!important}
+nav button{background:none;border:none;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:11px;color:var(--muted);padding:6px 0;position:relative}
+nav button svg{width:22px;height:22px}
+nav button[aria-current="page"]{color:var(--ink);font-weight:700}
+nav button[aria-current="page"] svg{color:var(--brand)}
+.dot[hidden]{display:none!important}
+.dot{position:absolute;top:3px;left:calc(50% + 7px);min-width:16px;height:16px;border-radius:99px;background:var(--no);color:#fff;font-size:10px;font-weight:700;display:grid;place-items:center;padding:0 4px}
+
+/* sheets */
+.sheet{position:absolute;inset:0;background:var(--bg);z-index:10;display:flex;flex-direction:column;transform:translateY(100%);transition:transform .3s ease;visibility:hidden}
+.sheet.open{transform:none;visibility:visible}
+.sheet-head{display:flex;align-items:center;gap:10px;padding:14px 0 10px}
+.back{width:38px;height:38px;border-radius:50%;border:1px solid var(--line);background:var(--surface);display:grid;place-items:center;flex:none}
+.back svg{width:18px;height:18px}
+.sheet-head .t{font-family:var(--font-d);font-weight:800;font-size:19px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sheet-body{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:14px;padding-bottom:20px}
+.match{background:linear-gradient(135deg,#0A6F8E,#23A9C8);color:#fff;border-radius:20px;padding:18px;position:relative;overflow:hidden}
+.match small{letter-spacing:.1em;text-transform:uppercase;font-size:11px;opacity:.9;font-weight:700}
+.match h2{font-family:var(--font-d);font-weight:800;font-size:26px;margin:4px 0 2px;line-height:1.05}
+.match p{margin:0;opacity:.92;font-size:14px}
+.box{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:10px}
+.box h3{margin:0;font-size:15px}
+.amount{font-family:var(--font-d);font-size:34px;font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.code{font-family:ui-monospace,Menlo,monospace;font-size:12px;background:var(--bg);border:1px dashed var(--line);border-radius:10px;padding:10px;word-break:break-all;color:var(--muted);user-select:all}
+.kv{display:flex;justify-content:space-between;gap:12px;font-size:14px}
+.kv span:first-child{color:var(--muted)}
+.kv span:last-child{font-weight:700;text-align:right;min-width:0;overflow-wrap:anywhere}
+ol.steps,ul.tips{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px;font-size:14px;line-height:1.45}
+ul.tips{font-size:13px;gap:3px;color:var(--muted)}
+.note{font-size:12.5px;color:var(--muted);line-height:1.45;margin:0}
+.status{border-radius:14px;padding:12px 14px;font-weight:700;font-size:14px;line-height:1.4}
+.status.wait{background:var(--warn-bg);color:var(--warn)}
+.status.ok{background:var(--yes-bg);color:var(--yes)}
+.status.bad{background:var(--no-bg);color:var(--no)}
+
+/* forms */
+form.f{display:flex;flex-direction:column;gap:16px}
+.field{display:flex;flex-direction:column;gap:5px;min-width:0}
+.field > label,.field .flabel{font-size:13px;font-weight:700}
+.field em{font-style:normal;color:var(--no)}
+.field input:not([type=checkbox]):not([type=radio]):not([type=file]),.field select,.field textarea{width:100%;border:1.5px solid var(--line);background:var(--surface);color:var(--ink);border-radius:12px;padding:11px 12px;font:inherit;font-size:16px}
+.field textarea{min-height:84px;resize:vertical}
+.field .help{font-size:12px;color:var(--muted);line-height:1.4}
+.field .err{font-size:12px;color:var(--no);font-weight:700}
+.field.invalid input,.field.invalid select,.field.invalid textarea,.field.invalid .upload,.field.invalid .slots{border-color:var(--no)}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.cityrow{display:grid;grid-template-columns:1fr 88px;gap:10px}
+.upload{display:flex;align-items:center;gap:12px;border:1.5px dashed var(--line);border-radius:12px;padding:10px;background:var(--surface)}
+.upload .thumb{width:56px;height:56px;border-radius:10px;background:var(--chip);flex:none;background-size:cover;background-position:center;display:grid;place-items:center;color:var(--brand);font-weight:800;font-size:12px}
+.upload label{flex:1;cursor:pointer}
+input.hide{position:absolute;opacity:0;width:1px;height:1px}
+.tipbox{background:var(--chip);border-radius:12px;padding:10px 12px}
+.tipbox b{font-size:12.5px;display:block;margin-bottom:4px}
+.slots{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;border:1.5px solid transparent;border-radius:12px}
+.slot{aspect-ratio:3/4;max-width:100%;border:1.5px dashed var(--line);border-radius:12px;background:var(--surface) center/cover no-repeat;display:grid;place-items:center;color:var(--muted);font-size:22px;cursor:pointer;position:relative}
+.slot.has{border-style:solid;color:transparent}
+.check{display:flex;gap:10px;align-items:flex-start;font-size:13.5px;line-height:1.4}
+.check input{width:20px;height:20px;flex:none;margin-top:1px;accent-color:var(--brand)}
+.artpick{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.artpick label{display:flex;flex-direction:column;gap:4px;font-size:11px;text-align:center;color:var(--muted);cursor:pointer}
+.artpick .pv{aspect-ratio:1;max-width:100%;border-radius:10px;border:2px solid var(--line);position:relative;overflow:hidden;background:var(--art-bg)}
+.artpick .pv svg{position:absolute;inset:0;width:100%;height:100%}
+.artpick input{position:absolute;opacity:0}
+.artpick input:checked + .pv{border-color:var(--brand);box-shadow:0 0 0 2px var(--brand)}
+.reqs{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:7px;font-size:13.5px}
+.reqs li{display:flex;gap:8px;align-items:flex-start}
+.reqs li::before{content:"";width:16px;height:16px;flex:none;border-radius:50%;margin-top:1px;background:var(--chip);border:2px solid var(--brand)}
+.reqs li.done::before{background:var(--yes);border-color:var(--yes)}
+.extras{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.extras div{aspect-ratio:3/4;max-width:100%;border-radius:10px;background:var(--chip) center/cover}
+
+/* about */
+.about-hero{display:flex;flex-direction:column;align-items:center;text-align:center;gap:8px;padding:10px 0 6px}
+.about-hero h1{font-family:var(--font-d);font-weight:800;font-size:28px;margin:4px 0 0}
+.about-hero .role-t{color:var(--muted);font-size:14px}
+.ig{display:inline-flex;align-items:center;gap:8px;justify-content:center;background:linear-gradient(135deg,#F58529,#DD2A7B 50%,#8134AF);color:#fff;border-radius:12px;padding:11px 16px;font-weight:700;text-decoration:none}
+.ig svg{width:18px;height:18px}
+.prose{font-size:15px;line-height:1.55;margin:0;max-width:62ch}
+.pillars{display:flex;flex-direction:column;gap:10px}
+.pillar{display:flex;gap:12px;align-items:flex-start}
+.pillar .ic{width:36px;height:36px;border-radius:10px;background:var(--chip);color:var(--brand);display:grid;place-items:center;flex:none}
+.pillar .ic svg{width:18px;height:18px}
+.pillar b{display:block;font-size:14.5px}
+.pillar span{font-size:13.5px;color:var(--muted);line-height:1.4}
+.placeholder{background:var(--warn-bg);color:var(--warn);border-radius:6px;padding:0 4px}
+
+/* welcome */
+.welcome{flex:1;display:flex;flex-direction:column;justify-content:center;gap:16px;padding-bottom:20px}
+.hero-art{position:relative;aspect-ratio:8/5;max-width:100%;border-radius:20px;overflow:hidden;background:var(--art-bg);border:1px solid var(--line)}
+.hero-art svg{position:absolute;inset:0;width:100%;height:100%}
+.hero-art.logo-hero{display:grid;place-items:center;aspect-ratio:auto;padding:34px 18px;background:radial-gradient(120% 140% at 15% 0%,rgba(152,237,204,.22),transparent 60%),radial-gradient(120% 140% at 95% 100%,rgba(109,168,195,.22),transparent 60%),var(--surface)}
+.hero-art.logo-hero svg{position:static;width:92%;height:auto;max-width:420px;overflow:visible}
+.hero-art.logo-hero .lt{fill:var(--ink)}
+.how{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:12px}
+.how li{display:flex;gap:12px;align-items:flex-start;font-size:15px;line-height:1.4}
+.how .n{flex:none;width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font-family:var(--font-d);font-weight:800;font-size:14px;background:var(--chip);color:var(--brand)}
+.how b{color:var(--ink)}
+.slogan{font-family:var(--font-d);font-weight:700;font-size:22px;line-height:1.2;margin:0;color:var(--ink)}
+.slogan em{font-style:italic;font-weight:800;background:linear-gradient(160deg,#4FD8D0,#2C93D3);-webkit-background-clip:text;background-clip:text;color:transparent;padding-right:.1em}
+.welcome .big{font-family:var(--font-d);font-weight:800;font-size:clamp(34px,10vw,44px);line-height:1;letter-spacing:-.03em;margin:0;text-wrap:balance}
+.welcome .big .logo{font-size:1em;letter-spacing:-.035em}
+.welcome .big .grad{background:linear-gradient(160deg,#4FD8D0,#2C93D3);-webkit-background-clip:text;background-clip:text;color:transparent}
+.logo{white-space:nowrap}
+
+/* chat */
+.chat{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:8px;padding:4px 0 12px}
+.msg{max-width:82%;padding:9px 12px;border-radius:16px;font-size:14.5px;line-height:1.4;background:var(--surface);border:1px solid var(--line);align-self:flex-start;overflow-wrap:anywhere}
+.msg b{display:block;font-size:12px;color:var(--brand);margin-bottom:2px}
+.msg.me{align-self:flex-end;background:var(--ink);color:var(--bg);border-color:transparent}
+.msg.bot{align-self:stretch;max-width:none;background:var(--chip);border:none;border-radius:14px}
+.msg.bot b{text-transform:uppercase;letter-spacing:.08em;font-size:10.5px}
+.msg.bot .q{font-family:var(--font-d);font-weight:800;font-size:17px;line-height:1.2}
+.composer{display:flex;gap:8px;padding:8px 0 10px;border-top:1px solid var(--line)}
+.composer input{flex:1;min-width:0;border:1.5px solid var(--line);background:var(--surface);color:var(--ink);border-radius:12px;padding:11px 12px;font:inherit;font-size:16px}
+.locked{text-align:center;padding:24px 10px;color:var(--muted);display:flex;flex-direction:column;gap:6px;align-items:center}
+.locked strong{color:var(--ink);font-family:var(--font-d);font-size:20px}
+.toast{position:absolute;left:50%;bottom:90px;transform:translateX(-50%) translateY(20px);background:var(--ink);color:var(--bg);padding:10px 14px;border-radius:12px;font-size:13.5px;font-weight:700;opacity:0;transition:.25s;z-index:30;pointer-events:none;max-width:90%;text-align:center}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+@media (prefers-reduced-motion: reduce){*{transition:none!important}}
+[hidden]{display:none!important}
+</style>
+</head><body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><linearGradient id="pgT" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#6BE3D8"/><stop offset="1" stop-color="#2C93D3"/></linearGradient></defs></svg>
+
+<div class="app" id="app">
+  <header>
+    <span class="logo" id="hdrLogo"></span>
+    <div class="seg" role="group" aria-label="Visão">
+      <button id="roleUser" aria-pressed="true">Participante</button>
+      <button id="roleAdmin" aria-pressed="false">Organizador</button>
+    </div>
+  </header>
+
+  <!-- ===== PARTICIPANTE ===== -->
+  <div class="role" id="userRole">
+    <main>
+      <section class="view scroll" id="u-welcome">
+        <div class="welcome">
+          <div class="hero-art logo-hero" id="heroArt" role="img" aria-label="Partiu?"></div>
+          <p class="big" style="text-align:center">Dê match com o <span class="grad">rolê</span><span style="color:#2C93D3">!</span></p>
+          <p class="slogan">Primeiro você dá match.<br>Depois… <em>Partiu?</em></p>
+          <ol class="how">
+            <li><span class="n">1</span><span><b>Arraste</b> e veja cada evento: o programa, o dia, o local e o valor.</span></li>
+            <li><span class="n">2</span><span><b>Topou?</b> Pague no Pix e garanta sua vaga.</span></li>
+            <li><span class="n">3</span><span><b>Partiu?</b> 24h antes abre o chat com quem vai, com perguntas pra quebrar o gelo.</span></li>
+          </ol>
+          <button class="btn" id="goSignup">Criar meu perfil</button>
+          <button class="btn ghost" id="goLogin">Já tenho conta · Entrar</button>
+          <button class="btn ghost" id="goAbout">Conhecer quem organiza</button>
+          <button class="btn ghost" id="goPartner">Contatar para parcerias</button>
+        </div>
+      </section>
+
+      <section class="view scroll" id="u-login" hidden>
+        <div class="sheet-head" style="padding-top:2px"><button class="back" id="loginBack" type="button" aria-label="Voltar para o início"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M15 5l-7 7 7 7"/></svg></button><span class="note">Voltar</span></div>
+        <h1 class="sec">Entrar</h1>
+        <p class="sub">Use o e-mail e a senha que você cadastrou.</p>
+        <form class="f" id="loginForm" novalidate>
+          <div class="field" data-f="lemail"><label for="lgEmail">E-mail</label><input id="lgEmail" type="email" autocomplete="email" placeholder="voce@email.com"></div>
+          <div class="field" data-f="lpass"><label for="lgPass">Senha</label><input id="lgPass" type="password" autocomplete="current-password" placeholder="Sua senha"></div>
+          <button class="btn" type="submit" id="lgBtn">Entrar</button>
+          <p class="note" style="text-align:center">Ainda não tem conta? <a href="#" class="link" id="loginToSignup" style="display:inline;padding:0;text-decoration:underline">Criar meu perfil</a></p>
+        </form>
+      </section>
+
+      <section class="view scroll" id="u-signup" hidden>
+        <div class="sheet-head" style="padding-top:2px"><button class="back" id="signupBack" type="button" aria-label="Voltar para o início"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M15 5l-7 7 7 7"/></svg></button><span class="note">Voltar</span></div>
+        <h1 class="sec">Crie seu perfil</h1>
+        <p class="sub">Todos os participantes passam por verificação. Isso deixa os eventos mais seguros para todo mundo.</p>
+        <form class="f" id="signupForm" novalidate>
+          <div class="field" data-f="name"><label for="pfName">Nome completo <em>*</em></label><input id="pfName" autocomplete="name" placeholder="Como está no documento"></div>
+          <div class="field" data-f="nick"><label for="pfNick">Como quer ser chamado(a) <em>*</em></label><input id="pfNick" autocomplete="nickname" placeholder="Ex.: Dani" maxlength="20"><span class="help">É assim que você aparece para o grupo e no chat do evento.</span></div>
+          <div class="field" data-f="birth"><label for="pfBirth">Nascimento <em>*</em></label><input id="pfBirth" type="date"></div>
+          <div class="field" data-f="cpf"><label for="pfCpf">CPF <em>*</em></label><input id="pfCpf" inputmode="numeric" placeholder="000.000.000-00" maxlength="14"></div>
+          <div class="field" data-f="phone"><label for="pfPhone">Celular (WhatsApp) <em>*</em></label><input id="pfPhone" type="tel" inputmode="tel" placeholder="(11) 90000-0000" maxlength="15"></div>
+          <div class="field" data-f="email"><label for="pfEmail">E-mail <em>*</em></label><input id="pfEmail" type="email" autocomplete="email" placeholder="voce@email.com"></div>
+          <div class="field" data-f="pass"><label for="pfPass">Crie uma senha <em>*</em></label><input id="pfPass" type="password" autocomplete="new-password" placeholder="Mínimo de 6 caracteres"><span class="help">Você vai usar o e-mail e esta senha para entrar.</span></div>
+          <div class="field" data-f="city"><span class="flabel">Cidade, Estado <em>*</em></span>
+            <div class="cityrow"><input id="pfCity" placeholder="Cidade" aria-label="Cidade"><select id="pfUf" aria-label="Estado"><option value="">UF</option></select></div>
+            <div class="status wait" id="cityAlert" role="status" hidden style="margin-top:8px;font-weight:500"><b>Atenção:</b> os eventos do Partiu? acontecem na cidade de São Paulo (capital). Você pode se cadastrar, mas só vai conseguir participar se puder ir até lá.</div>
+          </div>
+          <div class="status ok" style="font-weight:500;font-size:13.5px;line-height:1.45"><b>Para a segurança de todos:</b> o documento e o Instagram servem somente para validar o seu cadastro. O objetivo é proporcionar mais segurança a todos os usuários. Eles não aparecem para os outros participantes.</div>
+          <div class="field" data-f="ig"><label for="pfIg">Instagram <small style="color:var(--muted);font-weight:500">(opcional)</small></label><input id="pfIg" placeholder="@seuperfil" autocapitalize="none"></div>
+
+          <div class="field" data-f="photo">
+            <span class="flabel">Selfie de perfil <em>*</em></span>
+            <div class="tipbox"><b>Como deve ser a foto</b><ul class="tips">
+              <li>Rosto nítido, inteiro e olhando para a câmera</li>
+              <li>Só você, sem outras pessoas</li>
+              <li>Sem óculos</li>
+              <li>Nada cobrindo o rosto: boné, máscara, mão ou filtro</li>
+              <li>Atual, dos últimos 6 meses</li>
+              <li>Em lugar bem iluminado</li></ul></div>
+            <div class="upload"><div class="thumb" id="selfieThumb">FOTO</div><label for="pfSelfie" class="link">Escolher da galeria ou tirar selfie</label><input class="hide" type="file" id="pfSelfie" accept="image/*"></div>
+            <span class="help">Esta é a sua foto principal e o organizador a compara com o seu documento. Ela não pode ser apagada, só substituída por outra que siga as mesmas regras.</span>
+          </div>
+
+          <div class="field" data-f="extra">
+            <span class="flabel">Fotos adicionais</span>
+            <span class="help">Opcional, até 4 fotos. Aqui as regras são bem mais leves: vale foto com amigos, viajando ou fazendo o que você curte. Só é proibido conteúdo adulto.</span>
+            <div class="slots" id="slots"></div>
+          </div>
+
+          <div class="field" data-f="doc">
+            <span class="flabel">Foto do documento (RG ou CNH) <em>*</em></span>
+            <div class="upload"><div class="thumb" id="docThumb">DOC</div><label for="pfDoc" class="link">Enviar foto do documento</label><input class="hide" type="file" id="pfDoc" accept="image/*"></div>
+            <span class="help">Obrigatório. Só o organizador vê, e apenas para confirmar sua identidade. Fica guardada com segurança enquanto sua conta existir.</span>
+          </div>
+          <div class="field"><label for="pfBio">Sobre você</label><textarea id="pfBio" placeholder="Opcional: o que você curte fazer no fim de semana?"></textarea></div>
+          <div class="field" data-f="terms">
+            <label class="check"><input type="checkbox" id="pfTerms"><span>Li e aceito os <a href="#" class="link" data-terms>Termos de Uso</a> e autorizo o tratamento dos meus dados para verificação da conta, conforme a LGPD. <em>*</em></span></label>
+
+          </div>
+          <button class="btn" type="submit" id="suBtn">Enviar para verificação</button>
+        </form>
+      </section>
+
+      <section class="view" id="u-inicio" hidden>
+        <div class="greet" id="greet"></div>
+        <div id="verifyBanner"></div>
+        <div class="deck" id="deck"></div>
+        <div class="actions">
+          <button class="round no" id="bNo" aria-label="Passar evento"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+          <button class="round yes" id="bYes" aria-label="Topar evento"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></button>
+        </div>
+      </section>
+
+      <section class="view scroll" id="u-meus" hidden>
+        <h1 class="sec">Meus eventos</h1>
+        <p class="sub">Eventos que você topou e o status do pagamento.</p>
+        <div class="list" id="myList"></div>
+      </section>
+
+      <section class="view scroll" id="u-chats" hidden>
+        <h1 class="sec">Chats</h1>
+        <p class="sub">O chat de cada evento abre 24h antes, só para quem teve o Pix confirmado.</p>
+        <div class="list" id="chatList"></div>
+      </section>
+
+      <section class="view scroll" id="u-perfil" hidden></section>
+      <section class="view scroll" id="u-sobre" hidden></section>
+    </main>
+
+    <nav id="userNav" style="grid-template-columns:repeat(5,1fr)" hidden>
+      <button data-tab="inicio" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="5" y="3" width="14" height="18" rx="3"/><path d="M5 14h14" stroke-dasharray="2 2"/></svg>Início</button>
+      <button data-tab="meus"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>Eventos<span class="dot" id="dotMeus" hidden></span></button>
+      <button data-tab="chats"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M4 5h16v11H9l-5 4z"/></svg>Chats<span class="dot" id="dotChat" hidden></span></button>
+      <button data-tab="perfil"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6" stroke-linecap="round"/></svg>Perfil</button>
+      <button data-tab="sobre"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/></svg>Sobre</button>
+    </nav>
+  </div>
+
+  <!-- ===== ORGANIZADOR ===== -->
+  <div class="role" id="adminRole" hidden>
+    <main>
+      <section class="view scroll" id="a-eventos">
+        <h1 class="sec">Painel do organizador</h1>
+        <div class="tiles" id="tiles"></div>
+        <button class="btn" id="newEventBtn">+ Criar novo evento</button>
+        <h2 class="sec2">Eventos publicados</h2>
+        <div class="list" id="adminEvents"></div>
+      </section>
+      <section class="view scroll" id="a-pagamentos" hidden>
+        <h1 class="sec">Pagamentos Pix</h1>
+        <p class="sub">Confira no extrato do banco e confirme. Só quem estiver confirmado entra no chat do evento.</p>
+        <div class="list" id="payList"></div>
+      </section>
+      <section class="view scroll" id="a-cadastros" hidden>
+        <h1 class="sec">Cadastros</h1>
+        <p class="sub">Compare a selfie com o documento, confira se a pessoa tem 18 anos ou mais e, se ela informou o Instagram, se o perfil é real.</p>
+        <div class="list" id="userList"></div>
+      </section>
+    </main>
+    <nav id="adminNav" style="grid-template-columns:repeat(3,1fr)">
+      <button data-tab="eventos" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>Eventos</button>
+      <button data-tab="pagamentos"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M7 15h4" stroke-linecap="round"/></svg>Pagamentos<span class="dot" id="dotPay" hidden></span></button>
+      <button data-tab="cadastros"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="8" r="4"/><path d="M3 21c1.2-3.5 3.8-5.5 7-5.5M15 17l2 2 4-4"/></svg>Cadastros<span class="dot" id="dotUsers" hidden></span></button>
+    </nav>
+  </div>
+
+  <!-- sheets -->
+  <div class="sheet" id="sPix" aria-hidden="true">
+    <div class="sheet-head"><button class="back" data-close aria-label="Voltar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M15 5l-7 7 7 7"/></svg></button><div class="t">Pagamento</div></div>
+    <div class="sheet-body" id="pixBody"></div>
+  </div>
+  <div class="sheet" id="sChat" aria-hidden="true">
+    <div class="sheet-head"><button class="back" data-close aria-label="Voltar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M15 5l-7 7 7 7"/></svg></button><div class="t" id="chatTitle">Chat</div></div>
+    <div class="chat" id="chatMsgs" aria-live="polite"></div>
+    <div id="chatFoot"></div>
+  </div>
+  <div class="sheet" id="sAbout" aria-hidden="true">
+    <div class="sheet-head"><button class="back" data-close aria-label="Voltar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M15 5l-7 7 7 7"/></svg></button><div class="t">Quem organiza</div></div>
+    <div class="sheet-body" id="aboutSheetBody"></div>
+  </div>
+  <div class="sheet" id="sPartner" aria-hidden="true">
+    <div class="sheet-head"><button class="back" data-close aria-label="Voltar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M15 5l-7 7 7 7"/></svg></button><div class="t">Parcerias</div></div>
+    <div class="sheet-body">
+      <div class="box"><h3>Vamos conversar?</h3><p class="prose">Para parcerias, assuntos relacionados a negócios ou para negociar descontos em eventos, entre em contato:</p></div>
+      <div class="box"><div class="kv"><span>E-mail</span><span id="mailTxt" style="font-weight:700;user-select:all">partiuroles@gmail.com</span></div>
+        <button type="button" class="btn ghost" id="copyMail">Copiar e-mail</button>
+        <p class="note" style="margin:0;text-align:center">Se o seu aparelho abrir o app de e-mail, <a href="mailto:partiuroles@gmail.com?subject=Parceria%20Partiu%3F" target="_blank" rel="noopener" style="color:var(--brand);font-weight:700">toque aqui</a>.</p>
+        <div class="kv" style="margin-top:6px"><span>WhatsApp</span><span><a href="https://wa.me/5511961760097" target="_blank" rel="noopener" style="color:var(--brand);font-weight:700">(11) 96176-0097</a></span></div>
+        <a class="btn" href="https://wa.me/5511961760097?text=Ol%C3%A1!%20Quero%20falar%20sobre%20parceria%20com%20o%20Partiu%3F" target="_blank" rel="noopener">Chamar no WhatsApp</a></div>
+    </div>
+  </div>
+  <div class="sheet" id="sPhoto" aria-hidden="true">
+    <div class="sheet-head"><button class="back" data-close aria-label="Voltar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M15 5l-7 7 7 7"/></svg></button><div class="t" id="photoTitle">Foto</div></div>
+    <div class="sheet-body" style="display:grid;place-items:center"><img id="photoBig" alt="" style="max-width:100%;max-height:78vh;border-radius:14px"></div>
+  </div>
+  <div class="sheet" id="sTerms" aria-hidden="true">
+    <div class="sheet-head"><button class="back" data-close aria-label="Voltar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M15 5l-7 7 7 7"/></svg></button><div class="t">Termos de Uso</div></div>
+    <div class="sheet-body terms" id="termsBody"></div>
+  </div>
+  <div class="sheet" id="sNew" aria-hidden="true">
+    <div class="sheet-head"><button class="back" data-close aria-label="Voltar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M15 5l-7 7 7 7"/></svg></button><div class="t">Novo evento</div></div>
+    <div class="sheet-body">
+      <form class="f" id="eventForm" novalidate>
+        <div class="field" data-f="title"><label for="evTitle">Nome do evento <em>*</em></label><input id="evTitle" placeholder="Ex.: Noite de Boliche" maxlength="40"></div>
+        <div class="field"><label for="evCat">Categoria <em>*</em></label><select id="evCat"></select></div>
+        <div class="field" data-f="date"><label for="evDate">Data do evento <em>*</em></label><input id="evDate" type="date"></div>
+        <div class="field" data-f="spots"><span class="flabel">Número de participantes <em>*</em></span>
+          <div class="two">
+            <input id="evMin" type="number" inputmode="numeric" min="2" placeholder="Mínimo (ex.: 6)" aria-label="Mínimo de participantes">
+            <input id="evSpots" type="number" inputmode="numeric" min="2" placeholder="Máximo (ex.: 12)" aria-label="Máximo de participantes">
+          </div>
+          <span class="help">Se o mínimo não for atingido até 48h antes, o evento pode ser cancelado e os Pix são devolvidos.</span></div>
+        <div class="field" data-f="place"><span class="flabel">Local <em>*</em></span>
+          <input id="evBairro" placeholder="Bairro" aria-label="Bairro">
+          <div class="cityrow"><input id="evCity" placeholder="Cidade" aria-label="Cidade"><select id="evUf" aria-label="Estado"><option value="">UF</option></select></div>
+          <span class="help">O endereço exato pode ir nas instruções, que só aparecem para quem topou.</span></div>
+        <div class="field" data-f="price"><label for="evPrice">Valor do investimento (R$) <em>*</em></label><input id="evPrice" type="number" inputmode="decimal" min="0" step="0.01" placeholder="85,00"></div>
+        <div class="field" data-f="dur"><span class="flabel">Duração do evento <em>*</em></span>
+          <div class="two">
+            <div><span class="help" style="display:block;margin-bottom:4px">Início</span><input id="evStart" type="time" aria-label="Horário de início"></div>
+            <div><span class="help" style="display:block;margin-bottom:4px">Fim</span><input id="evEnd" type="time" aria-label="Horário de término"></div>
+          </div>
+          <span class="help">Do começo ao fim do encontro. O que acontece dentro desse intervalo vai na descrição.</span></div>
+        <div class="field" data-f="desc"><label for="evDesc">Descrição curta <em>*</em></label><textarea id="evDesc" maxlength="160" placeholder="Ex.: Das 13h às 16h, mas o jogo em si dura 2h, a partir das 14h. Até 160 caracteres."></textarea></div>
+        <div class="field"><span class="flabel">Imagem da carta</span><div class="artpick" id="artPick"></div>
+          <div class="upload"><div class="thumb" id="evImgThumb">FOTO</div><label for="evImg" class="link">Ou enviar uma imagem própria</label><input class="hide" type="file" id="evImg" accept="image/*"></div>
+        </div>
+        <div class="field"><label for="evInst">Instruções gerais</label><textarea id="evInst" placeholder="Uma instrução por linha. Ex.: Chegue 15 min antes."></textarea></div>
+        <div class="field"><label for="evQs">Perguntas quebra-gelo</label><textarea id="evQs" placeholder="Uma pergunta por linha. Se deixar vazio, o app usa o banco de perguntas padrão."></textarea></div>
+        <div class="field" data-f="pix"><span class="flabel">Chave Pix para este evento</span>
+          <div style="display:grid;grid-template-columns:132px minmax(0,1fr);gap:10px"><select id="evPixType" aria-label="Tipo de chave"><option>Celular</option><option>E-mail</option><option>Aleatória</option></select><input id="evPix" value="(11) 96176-0097" aria-label="Chave Pix" style="min-width:0;width:100%;box-sizing:border-box"></div></div>
+        <button class="btn" type="submit">Publicar evento</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" role="status"></div>
+</div>
+
+
+<script src="supabase.js"></script>
+<script src="app.js"></script>
+</body></html>
