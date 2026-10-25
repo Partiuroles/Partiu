@@ -393,7 +393,7 @@ $("#bYes").onclick=()=>swipeButton(1);$("#bNo").onclick=()=>swipeButton(-1);
 const UST={em_analise:["wait","Em análise"],verificado:["ok","Verificado"],recusado:["bad","Recusado"]};
 function renderProfile(){
   const p=S.profile,[c,t]=UST[p.status];const av=S.my.selfie?`style="background-image:url(${S.my.selfie})"`:"";
-  const msg=p.status==="em_analise"?`<div class="status wait">Seu cadastro está em análise. Você já pode ver os eventos. Esta tela atualiza sozinha quando o organizador aprovar.</div>`
+  const msg=p.status==="em_analise"?`<div class="status wait">Seu cadastro está em análise. Você já pode ver os eventos; para topar, aguarde a verificação.</div>`
     :p.status==="verificado"?`<div class="status ok">Conta verificada. Você já pode topar eventos.</div>`
     :`<div class="status bad">Não conseguimos verificar sua conta. Confira se a selfie segue as orientações e se o documento está nítido, e envie de novo.</div>`;
   const reqs=["Selfie clara, individual e atual","Nome completo","Maior de 18 anos","CPF válido","Celular com WhatsApp","E-mail","Cidade e estado","Foto do documento","Aceite dos termos e LGPD"];
@@ -427,11 +427,11 @@ function payDeadline(id){const e=byId(id),m=(S.matchAt||{})[id]||Date.now();retu
 function expireAll(){let ch=false;Object.keys(S.mine).forEach(id=>{if(S.mine[id]==="aguardando_pagamento"&&byId(id)&&Date.now()>payDeadline(id)){S.mine[id]="expirado";ch=true;}});if(ch)save();}
 function leftTxt(ms){const h=Math.floor(ms/36e5),m=Math.floor(ms%36e5/6e4);return h>=24?`${Math.floor(h/24)} dia(s) e ${h%24}h`:h>0?`${h}h${String(m).padStart(2,"0")}`:`${m} min`;}
 const CANCEL_HTML=`<div class="box"><h3>Regras de cancelamento</h3><ul class="reqs"><li class="done">Mais de 7 dias antes do evento: reembolso de 100%</li><li class="done">Entre 7 dias e 48h antes: reembolso de 50%</li><li class="done">Menos de 48h antes: sem reembolso, exceto se outra pessoa ocupar a vaga</li></ul><p class="note">Valem depois que o pagamento é efetivado. <a href="#" class="link" data-terms style="display:inline;padding:0;text-decoration:underline">Ver Termos de Uso</a></p></div>`;
-function openPix(id,fresh){window.__pixId=id;expireAll();
+function openPix(id,fresh){expireAll();
   const e=byId(id),st=S.mine[id];let status="";
   if(st==="aguardando_pagamento"||st==="recusado"){const dl=payDeadline(id);status=`<div class="status wait"><b>Você tem 48h para pagar.</b> Prazo até ${fmtDate(dl)} (restam ${leftTxt(dl-Date.now())}). Se passar do prazo sem o Pix, a vaga é liberada.</div>`;}
   if(st==="expirado")status=`<div class="status bad"><b>O prazo de 48h acabou</b> e a vaga foi liberada. Se ainda houver vaga, você pode dar match de novo.</div>`;
-  if(st==="aguardando_confirmacao")status=`<div class="status wait">Pagamento enviado. Aguardando o organizador confirmar. Esta tela atualiza sozinha.</div>`;
+  if(st==="aguardando_confirmacao")status=`<div class="status wait">Pagamento enviado. Aguardando o organizador confirmar.</div>`;
   if(st==="cancelado")status=`<div class="status bad">Este match foi cancelado.</div>`;
   if(st==="confirmado")status=`<div class="status ok">Pagamento confirmado. O chat com os participantes abre 24h antes do evento.</div>`;
   if(st==="recusado")status=`<div class="status bad">O organizador não encontrou seu Pix. Confira o comprovante e toque em "Já paguei" de novo, ou fale com o organizador.</div>`+status;
@@ -590,42 +590,11 @@ function openSheet(sel){const s=$(sel);s.classList.add("open");s.setAttribute("a
 function closeSheets(){document.querySelectorAll(".sheet").forEach(s=>{s.classList.remove("open");s.setAttribute("aria-hidden","true");});}
 document.querySelectorAll("[data-close]").forEach(b=>b.onclick=()=>{const s=b.closest(".sheet");s.classList.remove("open");s.setAttribute("aria-hidden","true");if(s.id==="sChat")stopChat();if(role==="user"&&S.profile)renderUser();});
 
-
-/* ================= ATUALIZAÇÃO AUTOMÁTICA ================= */
-function snap(){const p=S.profile;return JSON.stringify([p&&p.status,p&&p.role,S.mine,S.events.map(e=>[e.id,e.conf,e.hidden,e.title,e.date,e.price,e.pix]),S.users.map(u=>[u.id,u.status]),S.payments.map(x=>[x.id,x.status])]);}
-let refreshing=false;
-async function refresh(force){
-  if(!SESSION||refreshing)return;
-  if(document.hidden&&!force)return;
-  const open=document.querySelector(".sheet.open"),pixOpen=open&&open.id==="sPix";
-  if(open&&!pixOpen&&!force)return;
-  if(document.querySelector("#deck .card.dragging"))return;
-  refreshing=true;
-  try{
-    const before=snap(),oldSt=S.profile&&S.profile.status,oldRole=S.profile&&S.profile.role,oldMine=Object.assign({},S.mine),oldPend=pendingPayments().length,oldNew=allUsers().filter(u=>u.status==="em_analise").length;
-    await load();
-    if(snap()===before)return;
-    if(S.profile.status!==oldSt){if(S.profile.status==="verificado")toast("Seu cadastro foi verificado! Já pode topar eventos 🎉");else if(S.profile.status==="recusado")toast("Seu cadastro foi recusado. Veja em Perfil.");}
-    Object.keys(S.mine).forEach(id=>{if(oldMine[id]==="aguardando_confirmacao"&&S.mine[id]==="confirmado")toast("Pix confirmado! Sua vaga está garantida 🎉");else if(oldMine[id]==="aguardando_confirmacao"&&S.mine[id]==="recusado")toast("O organizador não encontrou seu Pix. Veja em Meus eventos.");});
-    if(S.profile.role==="admin"){const np=pendingPayments().length,nu=allUsers().filter(u=>u.status==="em_analise").length;if(np>oldPend)toast("Novo Pix para conferir");else if(nu>oldNew)toast("Novo cadastro para verificar");}
-    if(S.profile.role!==oldRole){window.__adminSeen=0;setRole("user");return;}
-    if(role==="admin")renderAdmin();else renderUser();
-    if(pixOpen&&window.__pixId&&byId(window.__pixId)){renderLists();openPix(window.__pixId,false);}
-  }catch(e){console.error(e);}finally{refreshing=false;}
-}
-let liveCh=null,liveT=null;
-function startLive(){if(liveCh||!SESSION)return;const go=()=>{clearTimeout(liveT);liveT=setTimeout(()=>refresh(),400);};
-  liveCh=SB.channel("live").on("postgres_changes",{event:"*",schema:"public",table:"profiles"},go).on("postgres_changes",{event:"*",schema:"public",table:"participations"},go).on("postgres_changes",{event:"*",schema:"public",table:"events"},go).subscribe();}
-function stopLive(){clearTimeout(liveT);if(liveCh){SB.removeChannel(liveCh);liveCh=null;}}
-setInterval(()=>refresh(),15000);
-document.addEventListener("visibilitychange",()=>{if(!document.hidden)refresh();});
-window.addEventListener("focus",()=>refresh());window.addEventListener("online",()=>refresh());
-document.getElementById("hdrLogo").style.cursor="pointer";document.getElementById("hdrLogo").onclick=async()=>{await refresh(true);toast("Atualizado");};
 async function enter(){
   try{await load();}catch(err){console.error(err);toast("Não consegui carregar seus dados. Tente de novo.");}
-  window.__adminSeen=0;uTab="inicio";aTab="eventos";setRole("user");startLive();
+  window.__adminSeen=0;uTab="inicio";aTab="eventos";setRole("user");
 }
-SB.auth.onAuthStateChange((ev)=>{if(ev==="SIGNED_OUT"){stopLive();SESSION=null;S=seed();window.__adminSeen=0;uScreen="welcome";uTab="inicio";closeSheets();setRole("user");}});
+SB.auth.onAuthStateChange((ev)=>{if(ev==="SIGNED_OUT"){SESSION=null;S=seed();window.__adminSeen=0;uScreen="welcome";uTab="inicio";closeSheets();setRole("user");}});
 (async function boot(){
   try{const {data}=await SB.auth.getSession();SESSION=data.session;}catch(_){}
   if(SESSION){await enter();}else{setRole("user");}
