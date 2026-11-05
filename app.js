@@ -123,7 +123,11 @@ function initials(n){return n.split(/\s+/).filter(Boolean).slice(0,2).map(p=>p[0
 function toast(t){const el=$("#toast");el.textContent=t;el.classList.add("show");clearTimeout(el._t);el._t=setTimeout(()=>el.classList.remove("show"),2000);}
 const confirmed=e=>e.conf||0;
 const verified=()=>S.profile&&S.profile.status==="verificado";
-const chatOpen=id=>S.mine[id]==="confirmado"&&byId(id)&&byId(id).status!=="cancelado"&&byId(id).date-Date.now()<=D;
+/* O chat encerra à 1h da manhã do dia seguinte ao dia do evento (horário de Brasília) */
+const SPDAY=t=>new Intl.DateTimeFormat("en-CA",{timeZone:"America/Sao_Paulo",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date(t));
+function chatEndAt(t){return new Date(SPDAY(new Date(SPDAY(t)+"T12:00:00-03:00").getTime()+D)+"T01:00:00-03:00").getTime();}
+const chatEnded=id=>{const e=byId(id);return !!e&&Date.now()>=chatEndAt(e.date);};
+const chatOpen=id=>S.mine[id]==="confirmado"&&byId(id)&&byId(id).status!=="cancelado"&&byId(id).date-Date.now()<=D&&!chatEnded(id);
 
 
 /* ================= SUPABASE: dados ================= */
@@ -158,7 +162,7 @@ async function load(){
   const cm={};(cn.data||[]).forEach(c=>cm[c.event_id]=Number(c.confirmed));
   S.events=(ev.data||[]).map(r=>mapEvent(r,cm[r.id]));
   S.mine={};S.matchAt={};S.mySent={};S.partId={};S.mypart={};
-  (pa.data||[]).forEach(p=>{S.mine[p.event_id]=p.status;S.matchAt[p.event_id]=new Date(p.matched_at).getTime();if(p.paid_sent_at)S.mySent[p.event_id]=new Date(p.paid_sent_at).getTime();S.partId[p.event_id]=p.id;S.mypart[p.event_id]={payer_key:p.payer_key,receipt_path:p.receipt_path,refunded_at:p.refunded_at};});
+  (pa.data||[]).forEach(p=>{S.mine[p.event_id]=p.status;S.matchAt[p.event_id]=new Date(p.matched_at).getTime();if(p.paid_sent_at)S.mySent[p.event_id]=new Date(p.paid_sent_at).getTime();S.partId[p.event_id]=p.id;S.mypart[p.event_id]={payer_key:p.payer_key,receipt_path:p.receipt_path,refunded_at:p.refunded_at,cancelled_paid:!!p.cancelled_paid,cancelled_at:p.cancelled_at,refund_percent:p.refund_percent,refund_amount:p.refund_amount==null?null:Number(p.refund_amount)};});
   S.passed=(ps.data||[]).map(x=>x.event_id);
   S.notifOK=!nt.error;S.notifs=nt.error?[]:(nt.data||[]);
   const p=S.profile,m=await signedMap([p.selfie_path,...p.extra_paths]);
@@ -168,7 +172,7 @@ async function load(){
     S.users=(us.data||[]).map(mapProfile);
     const nm={},fn={};S.users.forEach(u=>{nm[u.id]=u.nick;fn[u.id]=u.name;});
     S.payments=(pp.data||[]).map(x=>({id:x.id,user:nm[x.user_id]||"?",name:fn[x.user_id]||"",userId:x.user_id,eventId:x.event_id,status:x.status,
-      sent:x.paid_sent_at?new Date(x.paid_sent_at).getTime():new Date(x.matched_at).getTime(),payerKey:x.payer_key||"",receipt:x.receipt_path||"",refundedAt:x.refunded_at?new Date(x.refunded_at).getTime():0}));
+      sent:x.paid_sent_at?new Date(x.paid_sent_at).getTime():new Date(x.matched_at).getTime(),payerKey:x.payer_key||"",receipt:x.receipt_path||"",refundedAt:x.refunded_at?new Date(x.refunded_at).getTime():0,cancelledPaid:!!x.cancelled_paid,cancelledAt:x.cancelled_at?new Date(x.cancelled_at).getTime():0,refundPct:x.refund_percent==null?null:x.refund_percent,refundAmt:x.refund_amount==null?0:Number(x.refund_amount)}));
   }else{S.users=[];S.payments=[];}
 }
 async function uploadPhoto(uid,name,dataUrl){const path=uid+"/"+name;const r=await SB.storage.from("photos").upload(path,dataURLtoBlob(dataUrl),{contentType:"image/jpeg",upsert:true});if(r.error)throw r.error;return path;}
@@ -208,7 +212,7 @@ const TERMS=[
 "Casos excepcionais (por exemplo, doença grave com atestado) são avaliados pelo Organizador, caso a caso.",
 "Se o Organizador cancelar o evento por qualquer motivo, o reembolso é integral. Nada aqui afasta direitos garantidos pelo Código de Defesa do Consumidor."]],
 ["Chat e regras de conduta",[
-"O chat de cada evento abre 24 horas antes e é restrito a participantes com pagamento confirmado. Nele é proibido:",
+"O chat de cada evento abre 24 horas antes, encerra à 1h da manhã do dia seguinte ao evento e é restrito a participantes com pagamento confirmado. Nele é proibido:",
 ["conteúdo sexual ou ofensivo;","discussões e propaganda de política e religião;","vender produtos ou serviços, divulgar links comerciais ou aplicar golpes;","brigas, ofensas, ameaças, discriminação ou assédio de qualquer tipo;","pedir ou divulgar telefone, redes sociais ou dados de outros participantes sem consentimento;","gravar ou compartilhar fotos, vídeos ou conversas de outras pessoas sem autorização, inclusive durante o evento;","perfis falsos ou se passar por outra pessoa."],
 "Respeite os demais participantes, os funcionários e as regras dos locais. Sobre bebidas alcoólicas e outras substâncias, cada pessoa responde pelo próprio comportamento e deve obedecer à lei.",
 "Prints e denúncias podem ser usados na análise de um caso. Em caso de denúncia, o Organizador pode ler as conversas do chat. O descumprimento leva à advertência ou, nos casos graves, à remoção imediata do chat e do evento, ao cancelamento da conta, sem reembolso, e a medidas legais cabíveis."]],
@@ -431,23 +435,48 @@ function payDeadline(id){const e=byId(id),m=(S.matchAt||{})[id]||Date.now();retu
 function expireAll(){let ch=false;Object.keys(S.mine).forEach(id=>{if(S.mine[id]==="aguardando_pagamento"&&byId(id)&&Date.now()>payDeadline(id)){S.mine[id]="expirado";ch=true;}});if(ch)save();}
 function leftTxt(ms){const h=Math.floor(ms/36e5),m=Math.floor(ms%36e5/6e4);return h>=24?`${Math.floor(h/24)} dia(s) e ${h%24}h`:h>0?`${h}h${String(m).padStart(2,"0")}`:`${m} min`;}
 const CANCEL_HTML=`<div class="box"><h3>Regras de cancelamento</h3><ul class="reqs"><li class="done">Mais de 7 dias antes do evento: reembolso de 100%</li><li class="done">Entre 7 dias e 48h antes: reembolso de 50%</li><li class="done">Menos de 48h antes: sem reembolso, exceto se outra pessoa ocupar a vaga</li></ul><p class="note">Valem depois que o pagamento é efetivado. <a href="#" class="link" data-terms style="display:inline;padding:0;text-decoration:underline">Ver Termos de Uso</a></p></div>`;
+const DAY=864e5;
+function refundPct(ms){return ms>7*DAY?100:ms>=48*36e5?50:0;}
+function cancelBox(e,st,id){
+  if(e.status==="cancelado"||e.date<=Date.now()||!["aguardando_pagamento","recusado","aguardando_confirmacao","confirmado"].includes(st))return "";
+  const paid=st==="aguardando_confirmacao"||st==="confirmado",pct=refundPct(e.date-Date.now()),val=e.price*pct/100;
+  const info=paid?(pct>0?`Se cancelar agora, você recebe <b>${pct}% de volta (${fmtMoney(val)})</b>. O prazo conta a partir do seu pedido.`:`Faltam menos de 48h para o evento, então <b>não há reembolso</b>. Se outra pessoa assumir a sua vaga, o valor é devolvido integralmente.`):`Você ainda não pagou: cancelar não gera cobrança e a vaga é liberada.`;
+  const head=`Você está cancelando <b>${esc(e.title)}</b> (${fmtDate(e.date)}). Faltam <b>${leftTxt(e.date-Date.now())}</b> para o evento.`;
+  const mp=S.mypart[id]||{};
+  const warn=paid?(pct>0?`${head} Pela regra, você recebe <b>${pct}% do valor pago (${fmtMoney(e.price)})</b>, ou seja, <b>${fmtMoney(val)}</b>. Confirme abaixo a chave Pix para o organizador devolver o seu valor. Isso não pode ser desfeito.`:`${head} Como faltam menos de 48h, <b>não há reembolso</b>. Se outra pessoa assumir a sua vaga, o valor é devolvido integralmente e você combina com o organizador. Isso não pode ser desfeito.`):`${head} Você ainda não pagou, então não há cobrança. Se ainda houver lugar, pode dar match de novo depois.`;
+  const keyF=paid&&pct>0?`<div class="field" style="margin:10px 0"><label for="cxKey">Chave Pix para receber o reembolso <em>*</em></label><input id="cxKey" autocapitalize="none" autocomplete="off" value="${esc(mp.payer_key||"")}" placeholder="CPF, e-mail, celular ou chave aleatória"></div>`:"";
+  return `<div class="box" id="cxBox" data-pct="${pct}"><h3>Não vai conseguir ir?</h3><p class="note" style="margin-top:0">${info}</p>${paid||st==="recusado"?`<p class="note">Prefere conversar antes? Use o botão <b>Falar com o organizador</b>, mais acima.</p>`:""}
+    <button class="btn bad" id="cxAsk" type="button">Cancelar minha participação</button>
+    <div id="cxConfirm" hidden><div class="status bad">${warn}</div>${keyF}<div class="btnrow"><button class="btn ghost" id="cxNo" type="button">Voltar</button><button class="btn bad" id="cxYes" type="button">Sim, cancelar</button></div></div></div>`;
+}
+function antec(ms){const h=Math.floor(ms/36e5),d=Math.floor(h/24),r=h%24,pl=(n,a,b)=>n+" "+(n===1?a:b);return pl(h,"hora","horas")+(h>=24?` (${pl(d,"dia","dias")}${r?" e "+pl(r,"hora","horas"):""})`:"");}
+function regTxt(e,mp){const f=t=>{const d=new Date(t);return d.toLocaleDateString("pt-BR")+" às "+d.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"}).replace(":","h");};
+  return `Registro: cancelamento de ${e.title} (evento em ${f(e.date)}), feito em ${f(mp.cancelled_at)}, com ${antec(e.date-new Date(mp.cancelled_at).getTime())} de antecedência do início do evento.`;}
+function regBox(e,mp){return mp.cancelled_at?`<div class="box"><h3>Registro do cancelamento</h3><p class="note" id="regTxt" style="margin-top:0;user-select:all">${esc(regTxt(e,mp))}</p><button class="btn ghost small" id="regCopy" type="button">Copiar registro</button></div>`:"";}
+function cancelledMsg(e,mp){
+  if(!mp.cancelled_paid)return `<div class="status bad"><b>Você cancelou este match.</b> Não houve cobrança.${e.date>Date.now()?" Se ainda houver vaga, você pode dar match de novo.":""}</div>`;
+  const pct=mp.refund_percent||0,amt=mp.refund_amount||0,when=mp.cancelled_at?` em ${new Date(mp.cancelled_at).toLocaleDateString("pt-BR")}`:"";
+  const at=mp.cancelled_at?new Date(mp.cancelled_at).getTime():0,reg=at?`Evento <b>${esc(e.title)}</b>, cancelado em ${fmtDate(at)}, ${leftTxt(e.date-at)} antes do evento. `:`Você cancelou <b>${esc(e.title)}</b>. `;
+  if(amt>0)return `<div class="status bad"><b>Cancelamento registrado.</b> ${reg}Você recebe <b>${pct}% do valor pago (${fmtMoney(e.price)})</b>, ou seja, <b>${fmtMoney(amt)}</b>, na chave <b>${esc(mp.payer_key||"que você informou")}</b>. ${mp.refunded_at?`Reembolso feito em ${new Date(mp.refunded_at).toLocaleDateString("pt-BR")}.`:`Você recebe um aviso quando o Pix for devolvido. Para trocar a chave, fale com o organizador abaixo.`}</div>`;
+  return `<div class="status bad"><b>Você cancelou a participação${when}.</b> Como foi com menos de 48h de antecedência, não há reembolso. Se outra pessoa assumir a sua vaga, o valor é devolvido integralmente.</div>`;
+}
 function openPix(id,fresh){window.__pixId=id;expireAll();
   const e=byId(id),st=S.mine[id],mp=S.mypart[id]||{};let status="";
-  const cancelled=e.status==="cancelado",refundable=st==="confirmado"||st==="aguardando_confirmacao";
+  const cancelled=e.status==="cancelado",refundable=st==="confirmado"||st==="aguardando_confirmacao"||(st==="cancelado"&&mp.cancelled_paid),gone=st==="cancelado"||st==="expirado";
   if(st==="aguardando_pagamento"||st==="recusado"){const dl=payDeadline(id);status=`<div class="status wait"><b>Você tem 48h para pagar.</b> Prazo até ${fmtDate(dl)} (restam ${leftTxt(dl-Date.now())}). Se passar do prazo sem o Pix, a vaga é liberada.</div>`;}
   if(st==="expirado")status=`<div class="status bad"><b>O prazo de 48h acabou</b> e a vaga foi liberada. Se ainda houver vaga, você pode dar match de novo.</div>`;
   if(st==="aguardando_confirmacao")status=`<div class="status wait">Pagamento enviado${mp.payer_key?` (chave usada: ${esc(mp.payer_key)})`:""}. Aguardando o organizador confirmar. Esta tela atualiza sozinha.</div>`;
-  if(st==="cancelado")status=`<div class="status bad">Este match foi cancelado.</div>`;
-  if(st==="confirmado")status=`<div class="status ok">Pagamento confirmado. O chat com os participantes abre 24h antes do evento.</div>`+(e.status==="confirmado"?`<div class="status ok">O organizador confirmou que o evento vai acontecer! 🎉</div>`:"");
+  if(st==="cancelado")status=cancelledMsg(e,mp);
+  if(st==="confirmado")status=`<div class="status ok">Pagamento confirmado. O chat com os participantes abre 24h antes do evento e encerra à 1h do dia seguinte.</div>`+(e.status==="confirmado"?`<div class="status ok">O organizador confirmou que o evento vai acontecer! 🎉</div>`:"");
   if(st==="recusado")status=`<div class="status bad">O organizador não encontrou seu Pix. Fale com ele pelo botão abaixo, confira a chave e reenvie o comprovante.</div>`+status;
   if(cancelled)status=refundable?`<div class="status bad"><b>Evento cancelado.</b> ${mp.refunded_at?`O reembolso foi feito em ${new Date(mp.refunded_at).toLocaleDateString("pt-BR")} para a chave ${esc(mp.payer_key||"")}.`:`O organizador vai devolver o seu Pix para a chave ${esc(mp.payer_key||"que você informou")}. Você recebe um aviso quando for feito.`}</div>`:`<div class="status bad"><b>Evento cancelado.</b> Você não precisa mais pagar.</div>`;
   const canPay=(st==="aguardando_pagamento"||st==="recusado")&&!cancelled;
   let lastKey="";try{lastKey=mp.payer_key||localStorage.getItem("partiu-payer-key")||"";}catch(_){}
-  const cdHTML=!cancelled?(st==="confirmado"?cdSpan(e.date-D,"Chat abre em","Chat aberto ✓"):"")+cdSpan(e.date,"Evento em","Evento começou"):"";
+  const cdHTML=!cancelled&&st!=="cancelado"?(st==="confirmado"?cdSpan(e.date-D,"Chat abre em","Chat aberto ✓"):"")+cdSpan(e.date,"Evento em","Evento começou"):"";
   $("#pixBody").innerHTML=`
     <div class="match"><small>${fresh?"Partiu! Deu match com o evento":esc(e.cat)}</small><h2>${esc(e.title)}</h2><p>${fmtWhen(e)} · ${esc(e.place)}</p>${cdHTML?`<div>${cdHTML}</div>`:""}</div>
-    ${status}
-    ${st==="expirado"||cancelled?"":`<div class="box"><span class="lbl">Valor do investimento</span><div class="amount">${fmtMoney(e.price)}</div>
+    ${status}${st==="cancelado"&&!cancelled?regBox(e,mp):""}
+    ${gone||cancelled?"":`<div class="box"><span class="lbl">Valor do investimento</span><div class="amount">${fmtMoney(e.price)}</div>
       <div class="kv"><span>Chave Pix${e.pixType?` (${esc(e.pixType.toLowerCase())})`:""}</span><span>${esc(e.pix)}</span></div><div class="kv"><span>Favorecido</span><span>Partiu? Eventos</span></div>
       <span class="lbl" style="margin-top:4px">Pix copia e cola</span><div class="code" id="pixCode">${esc(pixCode(e))}</div>
       <button class="btn ghost" id="copyPix">Copiar código Pix</button><p class="note">Cole no app do seu banco em Pix Copia e Cola. O valor já vem preenchido.</p></div>`}
@@ -455,13 +484,28 @@ function openPix(id,fresh){window.__pixId=id;expireAll();
       <div class="field"><label for="payKey">Chave Pix que você usou para pagar <em>*</em></label><input id="payKey" placeholder="CPF, e-mail, celular ou chave aleatória" autocapitalize="none" autocomplete="off" value="${esc(lastKey)}"><span class="help">Serve para o organizador devolver o dinheiro se o evento for cancelado.</span></div>
       <div class="field"><span class="flabel">Comprovante de pagamento <em>*</em></span><div class="upload"><div class="thumb" id="rcThumb">PIX</div><label for="rcFile" class="link">Anexar comprovante</label><input class="hide" type="file" id="rcFile" accept="image/*"></div><span class="help">Foto ou print do comprovante no app do seu banco. Ajuda o organizador a achar o seu Pix.</span></div>
       <button class="btn" id="paid" type="button">Enviar comprovante</button></div>`:""}
-    ${st==="recusado"||st==="aguardando_confirmacao"?`<button class="btn ghost" id="talk" type="button">Falar com o organizador</button>`:""}
+    ${st==="recusado"||st==="aguardando_confirmacao"||st==="confirmado"||(st==="cancelado"&&mp.cancelled_paid)?`<button class="btn ghost" id="talk" type="button">${st==="cancelado"?"Falar com o organizador sobre o reembolso":st==="confirmado"?"Falar com o organizador (cancelamento ou dúvidas)":"Falar com o organizador"}</button>`:""}
     <div class="box"><h3>Instruções do evento</h3>${e.inst.length?`<ol class="steps">${e.inst.map(i=>`<li>${esc(i)}</li>`).join("")}</ol>`:`<p class="note">O organizador ainda não adicionou instruções.</p>`}</div>
     ${CANCEL_HTML}
-    ${st==="expirado"&&!cancelled?`<button class="btn" id="retry">Dar match de novo</button>`:""}`;
+    ${cancelBox(e,st,id)}
+    ${(st==="expirado"||(st==="cancelado"&&!mp.cancelled_paid))&&!cancelled&&e.date>Date.now()?`<button class="btn" id="retry">Dar match de novo</button>`:""}`;
   const cp=$("#copyPix");if(cp)cp.onclick=()=>{const t=$("#pixCode").textContent;try{navigator.clipboard.writeText(t).then(()=>toast("Código Pix copiado"),selectCode);}catch(_){selectCode();}};
   const rt=$("#retry");if(rt)rt.onclick=async()=>{rt.disabled=true;await SB.rpc("expire_overdue");const r=await SB.from("participations").update({status:"aguardando_pagamento"}).eq("id",S.partId[id]);
     if(r.error){toast(errMsg(r.error));rt.disabled=false;return;}await load();refreshBadges();renderLists();openPix(id,true);};
+  const cxA=$("#cxAsk");if(cxA){
+    cxA.onclick=()=>{cxA.hidden=true;$("#cxConfirm").hidden=false;};
+    $("#cxNo").onclick=()=>{$("#cxConfirm").hidden=true;cxA.hidden=false;};
+    $("#cxYes").onclick=async()=>{const y=$("#cxYes");
+      if(refundPct(e.date-Date.now())!==+$("#cxBox").dataset.pct){toast("O percentual de reembolso mudou. Confira de novo.");openPix(id,false);return;}
+      const kf=$("#cxKey"),key=kf?kf.value.trim():null;
+      if(kf&&key.length<3){toast("Informe a chave Pix para receber o reembolso");kf.focus();return;}
+      y.disabled=true;y.textContent="Cancelando…";
+      const r=await SB.rpc("cancel_participation",{p_part:S.partId[id],p_key:key});
+      if(r.error){toast(errMsg(r.error));await load();refreshBadges();renderLists();openPix(id,false);return;}
+      const d=r.data||{};await load();refreshBadges();renderLists();openPix(id,false);
+      toast(d.paid?(d.percent>0?`Cancelado. Reembolso de ${d.percent}% (${fmtMoney(Number(d.amount))}) a caminho.`:"Cancelado. Sem reembolso, por faltar menos de 48h."):"Cancelado. Não houve cobrança.");};
+  }
+  const rg=$("#regCopy");if(rg)rg.onclick=()=>copyText($("#regTxt").textContent,"Registro copiado");
   const tk=$("#talk");if(tk)tk.onclick=()=>openSupport(S.partId[id],e.title,false);
   let rcpt=null;const rf=$("#rcFile");
   if(rf)readFile(rf,u=>{rcpt=u;const t=$("#rcThumb");t.style.backgroundImage=`url(${u})`;t.textContent="";},1400);
@@ -490,16 +534,17 @@ function tickCd(){document.querySelectorAll("[data-cd]").forEach(el=>{const v=fm
 setInterval(tickCd,1000);
 function rowHTML(e,extra,right){return `<button class="row" data-id="${e.id}"><div class="swatch">${e.img?`<img src="${e.img}" alt="">`:artSVG(e.art,true)}</div><div class="info"><div class="t">${esc(e.title)}</div><div class="m">${fmtWhen(e)}</div>${extra||""}</div>${right||""}</button>`;}
 function myExtra(id){const e=byId(id),st=S.mine[id],mp=S.mypart[id]||{};let pills="";
-  if(e.status==="cancelado"){const ref=st==="confirmado"||st==="aguardando_confirmacao";pills=`<span class="pill bad">Evento cancelado</span>`+(ref?(mp.refunded_at?` <span class="pill ok">Reembolsado</span>`:` <span class="pill wait">Reembolso a caminho</span>`):"");}
+  if(e.status==="cancelado"){const ref=st==="confirmado"||st==="aguardando_confirmacao"||(st==="cancelado"&&mp.cancelled_paid);pills=`<span class="pill bad">Evento cancelado</span>`+(ref?(mp.refunded_at?` <span class="pill ok">Reembolsado</span>`:` <span class="pill wait">Reembolso a caminho</span>`):"");}
+  else if(st==="cancelado"&&mp.cancelled_paid){pills=`<span class="pill bad">Você cancelou</span>`+((mp.refund_amount||0)>0?(mp.refunded_at?` <span class="pill ok">Reembolsado</span>`:` <span class="pill wait">Reembolso de ${mp.refund_percent}% a caminho</span>`):` <span class="pill bad">Sem reembolso</span>`);}
   else{const [c,t]=PILL[st]||["pay",st];pills=`<span class="pill ${c}">${t}</span>`+(e.status==="confirmado"?` <span class="pill ok">Evento confirmado</span>`:"");}
-  const cds=e.status==="cancelado"?"":(st==="confirmado"?cdSpan(e.date-D,"Chat abre em","Chat aberto ✓"):"")+cdSpan(e.date,"Evento em","Evento começou");
+  const cds=e.status==="cancelado"||st==="cancelado"?"":(st==="confirmado"?cdSpan(e.date-D,"Chat abre em","Chat aberto ✓"):"")+cdSpan(e.date,"Evento em","Evento começou");
   return pills+(cds?`<div>${cds}</div>`:"");}
 function renderLists(){expireAll();
   const ids=Object.keys(S.mine).filter(byId).sort((a,b)=>byId(a).date-byId(b).date);
   $("#myList").innerHTML=ids.length?ids.map(id=>rowHTML(byId(id),myExtra(id))).join(""):`<p class="sub">Você ainda não topou nenhum evento. Vá em Início e arraste para a direita.</p>`;
   $("#myList").querySelectorAll(".row").forEach(r=>r.onclick=()=>openPix(r.dataset.id,false));
   const conf=ids.filter(id=>S.mine[id]==="confirmado"&&byId(id).status!=="cancelado");
-  $("#chatList").innerHTML=conf.length?conf.map(id=>{const e=byId(id),open=chatOpen(id);return rowHTML(e,(open?`<span class="pill ok">Chat aberto</span>`:cdSpan(e.date-D,"Chat abre em","Chat aberto ✓"))+`<div>${cdSpan(e.date,"Evento em","Evento começou")}</div>`);}).join(""):`<p class="sub">Nenhum chat ainda. Ele aparece aqui quando seu pagamento for confirmado.</p>`;
+  $("#chatList").innerHTML=conf.length?conf.map(id=>{const e=byId(id),open=chatOpen(id),end=chatEnded(id),fim=chatEndAt(e.date);return rowHTML(e,end?`<span class="pill bad">Chat encerrado</span>`:(open?`<span class="pill ok">Chat aberto</span><div>${cdSpan(fim,"Encerra em","Chat encerrado")}</div>`:cdSpan(e.date-D,"Chat abre em","Chat aberto ✓")+`<div>${cdSpan(e.date,"Evento em","Evento começou")}</div>`));}).join(""):`<p class="sub">Nenhum chat ainda. Ele aparece aqui quando seu pagamento for confirmado. O chat encerra à 1h do dia seguinte ao evento.</p>`;
   $("#chatList").querySelectorAll(".row").forEach(r=>r.onclick=()=>openChat(r.dataset.id));
   tickCd();
 }
@@ -513,24 +558,27 @@ function refreshBadges(){
 
 /* --- chat --- */
 let chatSub=null;
-function stopChat(){if(chatSub){SB.removeChannel(chatSub);chatSub=null;}}
+let chatTimer=null;
+function stopChat(){if(chatSub){SB.removeChannel(chatSub);chatSub=null;}if(chatTimer){clearInterval(chatTimer);chatTimer=null;}}
 async function openChat(id){
   stopChat();
   const e=byId(id);$("#chatTitle").textContent=e.title;const box=$("#chatMsgs"),foot=$("#chatFoot");
+  if(chatEnded(id)){box.innerHTML=`<div class="locked"><strong>Chat encerrado</strong><span>O chat encerrou ${fmtDate(chatEndAt(e.date))}, à 1h do dia seguinte ao evento.</span><span class="note">Esperamos que você tenha curtido o rolê!</span></div>`;foot.innerHTML="";openSheet("#sChat");return;}
   if(!chatOpen(id)){box.innerHTML=`<div class="locked"><strong>Chat fechado</strong><span>Abre ${fmtDate(e.date-D)}, 24h antes do evento.</span><span class="note">Faltam ${untilText(e.date-D-Date.now())}.</span></div>`;foot.innerHTML="";openSheet("#sChat");return;}
   const qs=e.qs.length?e.qs:DEFAULT_QS;S.qIndex[id]=S.qIndex[id]||0;
   box.innerHTML=`<div class="locked"><span class="note">Carregando o chat…</span></div>`;foot.innerHTML="";openSheet("#sChat");
   const r=await SB.from("messages").select("*").eq("event_id",id).order("created_at");
   if(r.error){box.innerHTML=`<div class="locked"><strong>Chat indisponível</strong><span class="note">${esc(errMsg(r.error))}</span></div>`;return;}
   let msgs=r.data||[];const nick=S.profile.nick,uid=S.profile.id;
-  const draw=()=>{box.innerHTML=`<div class="msg bot"><b>Partiu?</b>O chat abriu, ${esc(nick)}! Faltam ${untilText(e.date-Date.now())} para o ${esc(e.title)}. Aqui estão as pessoas que vão com você. Responda a pergunta para quebrar o gelo.</div><div class="msg bot"><b>Pergunta quebra-gelo</b><div class="q">${esc(qs[S.qIndex[id]%qs.length])}</div></div>`+
+  const draw=()=>{box.innerHTML=`<div class="msg bot"><b>Partiu?</b>O chat abriu, ${esc(nick)}! Faltam ${untilText(e.date-Date.now())} para o ${esc(e.title)}. Aqui estão as pessoas que vão com você. Responda a pergunta para quebrar o gelo. O chat encerra ${esc(fmtDate(chatEndAt(e.date)))}.</div><div class="msg bot"><b>Pergunta quebra-gelo</b><div class="q">${esc(qs[S.qIndex[id]%qs.length])}</div></div>`+
     msgs.map(m=>m.user_id===uid?`<div class="msg me">${esc(m.body)}</div>`:`<div class="msg"><b>${esc(m.nick||"Participante")}</b>${esc(m.body)}</div>`).join("");box.scrollTop=box.scrollHeight;};
   const add=m=>{if(!msgs.some(x=>x.id===m.id)){msgs.push(m);draw();}};
   foot.innerHTML=`<div style="display:flex;justify-content:flex-end"><button class="link" id="nextQ">Próxima pergunta</button></div><form class="composer" id="composer"><input id="chatInput" placeholder="Escreva sua mensagem" autocomplete="off" maxlength="1000" aria-label="Mensagem"><button class="btn small" type="submit">Enviar</button></form>`;
   $("#composer").onsubmit=async ev=>{ev.preventDefault();const v=$("#chatInput").value.trim();if(!v)return;$("#chatInput").value="";
-    const x=await SB.from("messages").insert({event_id:id,body:v}).select().single();if(x.error){toast(errMsg(x.error));$("#chatInput").value=v;return;}add(x.data);};
+    const x=await SB.from("messages").insert({event_id:id,body:v}).select().single();if(x.error){if(chatEnded(id)){stopChat();openChat(id);return;}toast(errMsg(x.error));$("#chatInput").value=v;return;}add(x.data);};
   $("#nextQ").onclick=()=>{S.qIndex[id]++;draw();};
   draw();
+  chatTimer=setInterval(()=>{if(chatEnded(id)){stopChat();openChat(id);renderLists();refreshBadges();}},20000);
   chatSub=SB.channel("chat-"+id).on("postgres_changes",{event:"INSERT",schema:"public",table:"messages",filter:"event_id=eq."+id},p=>add(p.new)).subscribe();
 }
 
@@ -556,18 +604,21 @@ function renderAdminEvents(){
   const out=document.createElement("button");out.className="btn ghost";out.textContent="Sair da conta";out.style.marginTop="14px";out.onclick=logout;$("#adminEvents").appendChild(out);
 }
 async function renderPayments(){
-  const evs=S.events.filter(e=>e.date>Date.now()-864e5||S.payments.some(p=>p.eventId===e.id&&p.status!=="aguardando_pagamento")).sort((a,b)=>b.date-a.date);
+  const evs=S.events.filter(e=>e.date>Date.now()-864e5||S.payments.some(p=>p.eventId===e.id&&p.status!=="aguardando_pagamento"&&!(p.status==="cancelado"&&!p.cancelledPaid))).sort((a,b)=>b.date-a.date);
   const m=await signedMap(S.payments.map(p=>p.receipt));
-  const refundTotal=S.payments.filter(p=>byId(p.eventId)&&byId(p.eventId).status==="cancelado"&&(p.status==="confirmado"||p.status==="aguardando_confirmacao")&&!p.refundedAt);
-  const sum=refundTotal.reduce((t,p)=>t+byId(p.eventId).price,0);
-  const card=(p,e)=>{const needsRefund=e.status==="cancelado"&&(p.status==="confirmado"||p.status==="aguardando_confirmacao");const [c,t]=PILL[p.status]||["pay",p.status];const rc=m[p.receipt];
+  const refAmt=(p,e)=>e.status==="cancelado"&&(p.status==="confirmado"||p.status==="aguardando_confirmacao")?e.price:(p.status==="cancelado"&&p.cancelledPaid?p.refundAmt:0);
+  const refundTotal=S.payments.filter(p=>byId(p.eventId)&&refAmt(p,byId(p.eventId))>0&&!p.refundedAt);
+  const sum=refundTotal.reduce((t,p)=>t+refAmt(p,byId(p.eventId)),0);
+  const card=(p,e)=>{const ra=refAmt(p,e),needsRefund=ra>0,uc=p.status==="cancelado"&&p.cancelledPaid;const [c,t]=uc?["bad",p.refundPct>0?`Cancelou (${p.refundPct}%)`:"Cancelou (sem reembolso)"]:(PILL[p.status]||["pay",p.status]);const rc=m[p.receipt];
     return `<div class="ucard"><div class="uhead"><div class="avatar">${esc(initials(p.user))}</div><div style="flex:1;min-width:0"><b>${esc(p.user)}</b><div style="color:var(--muted);font-size:13px">${esc(p.name)} · ${p.status==="aguardando_pagamento"?"deu match":"enviado"} ${ago(p.sent)}</div></div><div class="money">${fmtMoney(e.price)}</div></div>
+      ${uc?`<div class="status bad"><b>${esc(p.user)} cancelou${p.cancelledAt?` ${ago(p.cancelledAt)}`:""}.</b> ${p.refundAmt>0?`Direito a ${p.refundPct}% de reembolso.`:`Menos de 48h antes do evento: sem reembolso.`}</div>`:""}
       <div class="grid2"><div><span>Chave Pix usada</span><b style="user-select:all;overflow-wrap:anywhere">${esc(p.payerKey||"não informada")}</b></div><div><span>Situação</span><span class="pill ${c}" style="margin:0">${t}</span></div></div>
       ${rc?`<button type="button" class="btn ghost small" data-zoom="${esc(rc)}">Ver comprovante</button>`:(p.receipt?"":`<p class="note">Sem comprovante anexado.</p>`)}
       ${p.status==="aguardando_confirmacao"?`<div class="btnrow"><button class="btn bad" data-act="no" data-p="${p.id}">Não encontrei</button><button class="btn ok" data-act="ok" data-p="${p.id}">Confirmar Pix</button></div>`:""}
-      ${needsRefund?(p.refundedAt?`<div class="status ok">Devolvido em ${new Date(p.refundedAt).toLocaleDateString("pt-BR")}</div>`:`<div class="refund"><span>Devolver <b>${fmtMoney(e.price)}</b> para a chave <b style="user-select:all;overflow-wrap:anywhere">${esc(p.payerKey||"(não informada, fale com a pessoa)")}</b></span><div class="btnrow">${p.payerKey?`<button class="btn ghost small" data-copy="${esc(p.payerKey)}">Copiar chave</button>`:""}<button class="btn ok small" data-refund="${p.id}">Marcar como devolvido</button></div></div>`):""}
+      ${needsRefund?(p.refundedAt?`<div class="status ok">Devolvido em ${new Date(p.refundedAt).toLocaleDateString("pt-BR")}</div>`:`<div class="refund"><span>Devolver <b>${fmtMoney(ra)}</b> para a chave <b style="user-select:all;overflow-wrap:anywhere">${esc(p.payerKey||"(não informada, fale com a pessoa)")}</b></span><div class="btnrow">${p.payerKey?`<button class="btn ghost small" data-copy="${esc(p.payerKey)}">Copiar chave</button>`:""}<button class="btn ok small" data-refund="${p.id}">Marcar como devolvido</button></div></div>`):""}
+      ${uc&&p.refundAmt<=0&&e.status!=="cancelado"?`<div class="refund"><span>Se outra pessoa assumir a vaga de ${esc(p.user)}, o reembolso é integral (<b>${fmtMoney(e.price)}</b>).</span><button class="btn ghost small" data-fullref="${p.id}" data-hint="Toque de novo para liberar o reembolso integral">Liberar reembolso integral</button></div>`:""}
       <button class="btn ghost small" data-chat="${p.id}" data-t="${esc(e.title)}" data-w="${esc(p.user)}">Conversar com ${esc(p.user)}</button></div>`;};
-  const grp=e=>{const all=S.payments.filter(p=>p.eventId===e.id),paid=all.filter(p=>p.status!=="aguardando_pagamento"&&p.status!=="expirado"&&p.status!=="cancelado"),waiting=all.filter(p=>p.status==="aguardando_pagamento").length,pend=all.filter(p=>p.status==="aguardando_confirmacao").length;
+  const grp=e=>{const all=S.payments.filter(p=>p.eventId===e.id),paid=all.filter(p=>(p.status!=="aguardando_pagamento"&&p.status!=="expirado"&&p.status!=="cancelado")||(p.status==="cancelado"&&p.cancelledPaid)),waiting=all.filter(p=>p.status==="aguardando_pagamento").length,pend=all.filter(p=>p.status==="aguardando_confirmacao").length;
     const conf=confirmed(e),arrec=all.filter(p=>p.status==="confirmado").length*e.price,st=e.status||"aberto";
     const act=st==="cancelado"?"":`<div class="btnrow">${st==="aberto"?`<button class="btn ok" data-evact="confirmado" data-ev="${e.id}" data-hint="${conf<e.minSpots?`Ainda abaixo do mínimo (${conf} de ${e.minSpots}). Toque de novo para confirmar mesmo assim`:"Toque de novo para confirmar o evento"}">Confirmar evento</button>`:""}<button class="btn bad" data-evact="cancelado" data-ev="${e.id}" data-hint="Toque de novo para cancelar e avisar todos">Cancelar evento</button></div>`;
     return `<details class="evgrp" ${pend||st!=="aberto"?"open":""}><summary><div class="sw">${e.img?`<img src="${e.img}" alt="">`:artSVG(e.art,true)}</div><div class="tt"><b>${esc(e.title)}</b><span>${fmtWhen(e)}</span><div><span class="pill ${EVST[st][0]}" style="margin:3px 4px 0 0">${EVST[st][1]}</span>${pend?`<span class="pill wait" style="margin:3px 0 0">${pend} Pix a conferir</span>`:""}</div></div></summary>
@@ -585,6 +636,11 @@ async function renderPayments(){
   root.querySelectorAll("[data-chat]").forEach(b=>b.onclick=()=>openSupport(b.dataset.chat,b.dataset.t,true,b.dataset.w));
   root.querySelectorAll("[data-refund]").forEach(b=>b.onclick=async()=>{b.disabled=true;const r=await SB.from("participations").update({refunded_at:new Date().toISOString()}).eq("id",b.dataset.refund);
     if(r.error){toast(errMsg(r.error));b.disabled=false;return;}await load();renderAdmin();toast("Reembolso registrado. A pessoa foi avisada.");});
+  root.querySelectorAll("[data-fullref]").forEach(b=>b.onclick=async()=>{
+    if(!b.dataset.armed){b.dataset.armed=1;b.dataset.old=b.textContent;b.textContent=b.dataset.hint;b.classList.add("warn2");setTimeout(()=>{if(b.isConnected&&b.dataset.armed){delete b.dataset.armed;b.textContent=b.dataset.old;b.classList.remove("warn2");}},5000);return;}
+    const p=S.payments.find(x=>x.id===b.dataset.fullref),e=p&&byId(p.eventId);if(!e)return;b.disabled=true;
+    const r=await SB.from("participations").update({refund_percent:100,refund_amount:e.price}).eq("id",p.id);
+    if(r.error){toast(errMsg(r.error));b.disabled=false;return;}await load();renderAdmin();toast("Reembolso integral liberado. Devolva o Pix e marque como devolvido.");});
   root.querySelectorAll("[data-evact]").forEach(b=>b.onclick=async()=>{
     if(!b.dataset.armed){b.dataset.armed=1;b.dataset.old=b.textContent;b.textContent=b.dataset.hint;b.classList.add("warn2");setTimeout(()=>{if(b.isConnected&&b.dataset.armed){delete b.dataset.armed;b.textContent=b.dataset.old;b.classList.remove("warn2");}},5000);return;}
     b.disabled=true;const r=await SB.rpc("admin_set_event_status",{p_event:b.dataset.ev,p_status:b.dataset.evact});
@@ -657,7 +713,7 @@ document.querySelectorAll("[data-close]").forEach(b=>b.onclick=()=>{const s=b.cl
 
 
 /* ================= ATUALIZAÇÃO AUTOMÁTICA ================= */
-function snap(){const p=S.profile;return JSON.stringify([p&&p.status,p&&p.role,S.mine,S.events.map(e=>[e.id,e.conf,e.hidden,e.status,e.title,e.date,e.price,e.pix]),S.users.map(u=>[u.id,u.status]),S.payments.map(x=>[x.id,x.status,x.refundedAt]),S.notifs.map(n=>[n.id,n.read_at]),S.mypart]);}
+function snap(){const p=S.profile;return JSON.stringify([p&&p.status,p&&p.role,S.mine,S.events.map(e=>[e.id,e.conf,e.hidden,e.status,e.title,e.date,e.price,e.pix]),S.users.map(u=>[u.id,u.status]),S.payments.map(x=>[x.id,x.status,x.refundedAt,x.refundAmt]),S.notifs.map(n=>[n.id,n.read_at]),S.mypart,Object.keys(S.mine).map(id=>chatOpen(id)+"/"+chatEnded(id))]);}
 let refreshing=false;
 async function refresh(force){
   if(!SESSION||refreshing)return;
@@ -724,7 +780,7 @@ const DEMO_HTML=`<div class="box demo"><h3>Como funciona o Partiu?</h3><p class=
 function aboutHTML(){return DEMO_HTML+aboutHTML0();}
 
 /* ================= NOTIFICAÇÕES ================= */
-const NICON={pix_confirmado:"✅",pix_recusado:"⚠️",chat_aberto:"💬",evento_confirmado:"🎉",evento_cancelado:"❌",reembolso:"💸",prazo_vencido:"⏰",cadastro_verificado:"✅",cadastro_recusado:"⚠️",suporte:"💬",admin_pix:"💳",admin_cadastro:"🪪",admin_suporte:"💬"};
+const NICON={pix_confirmado:"✅",pix_recusado:"⚠️",chat_aberto:"💬",evento_confirmado:"🎉",evento_cancelado:"❌",reembolso:"💸",prazo_vencido:"⏰",cadastro_verificado:"✅",cadastro_recusado:"⚠️",suporte:"💬",admin_pix:"💳",admin_cadastro:"🪪",admin_suporte:"💬",cancelamento:"↩️",admin_cancelamento:"↩️"};
 function unreadCount(){return S.notifs.filter(n=>!n.read_at).length;}
 function updateBell(){const b=$("#bell");if(!b)return;b.hidden=!S.profile;const c=unreadCount(),d=$("#dotBell");d.hidden=!c;d.textContent=c>9?"9+":c;}
 async function markRead(ids){ids=ids.filter(id=>{const n=S.notifs.find(x=>x.id===id);return n&&!n.read_at;});if(!ids.length)return;
@@ -737,11 +793,11 @@ function renderNotifs(){
 }
 async function goNotif(n){if(!n)return;markRead([n.id]);closeSheets();
   const k=n.kind,ev=n.event_id&&byId(n.event_id);
-  if(["pix_confirmado","evento_confirmado","evento_cancelado","reembolso","prazo_vencido"].includes(k)){if(ev){role="user";openPix(ev.id,false);}}
+  if(["pix_confirmado","evento_confirmado","evento_cancelado","reembolso","prazo_vencido","cancelamento"].includes(k)){if(ev){role="user";openPix(ev.id,false);}}
   else if(k==="pix_recusado"||k==="suporte"){if(ev)openSupport(n.participation_id,ev.title,false);}
   else if(k==="chat_aberto"){if(ev)openChat(ev.id);}
   else if(k==="cadastro_verificado"||k==="cadastro_recusado"){uTab="perfil";renderUser();}
-  else if(k==="admin_pix"){aTab="pagamentos";renderAdmin();}
+  else if(k==="admin_pix"||k==="admin_cancelamento"){aTab="pagamentos";renderAdmin();}
   else if(k==="admin_cadastro"){aTab="cadastros";renderAdmin();}
   else if(k==="admin_suporte"){aTab="pagamentos";renderAdmin();const p=S.payments.find(x=>x.id===n.participation_id);if(ev&&p)openSupport(p.id,ev.title,true,p.user);}
 }
